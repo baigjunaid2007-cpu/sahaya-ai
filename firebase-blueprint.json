@@ -1,0 +1,120 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "role": { "type": "string", "enum": ["user", "officer"], "description": "User role" },
+        "aadhaarNumber": { "type": "string", "description": "Masked Aadhaar number (e.g. XXXX-XXXX-1234)" },
+        "isAadhaarVerified": { "type": "boolean", "description": "Whether the user has verified their identity via Aadhaar" },
+        "aadhaarData": { 
+          "type": "object",
+          "properties": {
+            "dob": { "type": "string" },
+            "gender": { "type": "string" },
+            "address": { "type": "string" }
+          },
+          "description": "Verified data from Aadhaar"
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["name", "role", "createdAt"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "Police complaint details",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "ID of the user who filed the complaint" },
+        "language": { "type": "string", "enum": ["en", "hi", "te", "auto"], "description": "Language used for filing" },
+        "incidentType": { "type": "string", "description": "Type of incident (e.g., Theft, Harassment)" },
+        "description": { "type": "string", "description": "Detailed description of the incident" },
+        "location": { "type": "string", "description": "Location of the incident" },
+        "coordinates": { 
+          "type": "object", 
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          },
+          "description": "GPS coordinates of the incident"
+        },
+        "jurisdiction": { "type": "string", "description": "Automatically detected police station jurisdiction" },
+        "incidentDate": { "type": "string", "format": "date-time", "description": "Date and time of the incident" },
+        "status": { "type": "string", "enum": ["received", "assigned", "verified", "fir_drafted", "resolved"], "description": "Current status of the complaint" },
+        "aiSummary": { "type": "array", "items": { "type": "string" }, "description": "3-bullet AI-generated summary" },
+        "assignedOfficer": { 
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "rank": { "type": "string" },
+            "badge": { "type": "string" }
+          },
+          "description": "Officer assigned to the case"
+        },
+        "timeline": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "status": { "type": "string" },
+              "timestamp": { "type": "string", "format": "date-time" },
+              "note": { "type": "string" }
+            }
+          },
+          "description": "Uber-style tracking timeline"
+        },
+        "reminders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "date": { "type": "string", "format": "date-time" },
+              "description": { "type": "string" }
+            }
+          },
+          "description": "Court or legal reminders"
+        },
+        "isDuplicate": { "type": "boolean", "description": "Flag for potential duplicate detection" },
+        "duplicateGroupId": { "type": "string", "description": "ID to group similar cases" },
+        "videoUrl": { "type": "string", "description": "URL to video evidence stored in Firebase Storage" },
+        "videoMimeType": { "type": "string", "description": "MIME type of the video" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when filed" }
+      },
+      "required": ["userId", "language", "incidentType", "description", "location", "incidentDate", "status", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System notifications for users and officers",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "ID of the recipient user (or 'all_officers' for general officer alerts)" },
+        "role": { "type": "string", "enum": ["user", "officer"], "description": "Target role for the notification" },
+        "title": { "type": "string", "description": "Notification title" },
+        "message": { "type": "string", "description": "Notification message" },
+        "type": { "type": "string", "enum": ["new_complaint", "status_update"], "description": "Type of notification" },
+        "complaintId": { "type": "string", "description": "Related complaint ID" },
+        "isRead": { "type": "boolean", "description": "Whether the notification has been read" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when created" }
+      },
+      "required": ["userId", "role", "title", "message", "type", "isRead", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/complaints/{complaintId}": {
+      "schema": "Complaint",
+      "description": "Police complaints"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "System notifications"
+    }
+  }
+}

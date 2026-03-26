@@ -1,0 +1,9 @@
+{
+  "name": "Remix: Sahaya AI: Multilingual Police Complaint Portal",
+  "description": "An AI-driven platform for multilingual police complaint reporting with CCTNS-compatible output. Supports incident filing in Telugu, Hindi, and English with natural language guidance and mAadhaar verification.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation",
+    "notifications"
+  ]
+}

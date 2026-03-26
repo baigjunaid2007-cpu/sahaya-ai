@@ -1,0 +1,145 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (Firebase Auth UID)
+    // Fields:
+    //   - name: string (required)
+    //   - email: string (required, email format)
+    //   - role: string (required, 'user' or 'officer')
+    //   - createdAt: string (required, ISO 8601)
+    //
+    // Collection: complaints
+    // Document ID: {complaintId} (Auto-generated)
+    // Fields:
+    //   - userId: string (required, matches creator's UID)
+    //   - language: string (required, 'en', 'hi', 'te')
+    //   - incidentType: string (required, max 100 chars)
+    //   - description: string (required, max 5000 chars)
+    //   - location: string (required, max 200 chars)
+    //   - incidentDate: string (required, ISO 8601)
+    //   - status: string (required, 'pending', 'reviewed', 'resolved')
+    //   - createdAt: string (required, ISO 8601)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "baigjunaid2007@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isOfficer() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'officer' || isAdmin());
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      let allowedFields = [
+        'name', 'email', 'role', 'createdAt', 'updatedAt', 'phone', 'bio', 
+        'aadhaarNumber', 'isAadhaarVerified', 'aadhaarData', 'badgeNumber'
+      ];
+      return hasOnlyAllowedFields(allowedFields) &&
+             data.name is string && data.name.size() > 0 &&
+             isValidEmail(data.email) &&
+             data.role in ['user', 'officer'] &&
+             data.createdAt is string;
+    }
+
+    function isValidComplaint(data) {
+      let allowedFields = [
+        'userId', 'userName', 'userEmail', 'language', 'incidentType', 'description', 
+        'location', 'coordinates', 'jurisdiction', 'incidentDate', 'status', 
+        'createdAt', 'aiSummary', 'isAnonymous', 'audioEvidence', 'audioMimeType',
+        'isSOS', 'latitude', 'longitude', 'videoUrl', 'videoMimeType'
+      ];
+      return hasOnlyAllowedFields(allowedFields) &&
+             data.userId == request.auth.uid &&
+             data.language in ['en', 'hi', 'te', 'auto'] &&
+             data.incidentType is string && data.incidentType.size() > 0 &&
+             data.description is string && data.description.size() > 0 &&
+             data.location is string && data.location.size() > 0 &&
+             data.status in ['pending', 'reviewed', 'resolved', 'received', 'assigned', 'verified', 'fir_drafted'] &&
+             data.createdAt is string &&
+             data.incidentDate is string;
+    }
+
+    function isValidNotification(data) {
+      let allowedFields = ['userId', 'role', 'title', 'message', 'type', 'complaintId', 'isRead', 'createdAt'];
+      return hasOnlyAllowedFields(allowedFields) &&
+             data.userId is string &&
+             data.role in ['user', 'officer'] &&
+             data.title is string &&
+             data.message is string &&
+             data.type in ['new_complaint', 'status_update'] &&
+             data.isRead is bool &&
+             data.createdAt is string;
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isOfficer();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+    }
+
+    match /complaints/{complaintId} {
+      allow read: if isDocOwner() || isOfficer();
+      allow create: if isAuthenticated() && isValidComplaint(request.resource.data);
+      allow update: if isOfficer(); // Only officers can update status
+      allow delete: if false; // Complaints should not be deleted
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || (resource.data.userId == 'all_officers' && isOfficer()));
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isOfficer());
+      allow delete: if false;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
